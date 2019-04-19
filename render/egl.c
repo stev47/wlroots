@@ -351,6 +351,8 @@ bool wlr_egl_swap_buffers(struct wlr_egl *egl, EGLSurface surface,
 	if (egl->platform == EGL_PLATFORM_WAYLAND_EXT) {
 		eglSwapInterval(egl->display, 0);
 	}
+        //damage = NULL;
+        //wlr_log(WLR_DEBUG, "wlr_egl_swap_buffers()");
 
 	EGLBoolean ret;
 	if (damage != NULL && (egl->exts.swap_buffers_with_damage_ext ||

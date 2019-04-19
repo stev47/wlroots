@@ -144,7 +144,7 @@ struct wlr_drm_connector {
 	drmModeCrtc *old_crtc;
 
 	bool pageflip_pending;
-	struct wl_event_source *retry_pageflip;
+	struct wl_event_source *fake_pageflip;
 	struct wl_list link;
 };
 

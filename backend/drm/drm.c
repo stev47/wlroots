@@ -391,9 +391,6 @@ static void drm_connector_start_renderer(struct wlr_drm_connector *conn) {
 	if (drm->iface->crtc_pageflip(drm, conn, crtc, fb_id, &mode->drm_mode)) {
 		conn->pageflip_pending = true;
 		wlr_output_update_enabled(&conn->output, true);
-	} else {
-		wl_event_source_timer_update(conn->retry_pageflip,
-			1000000.0f / conn->output.current_mode->refresh);
 	}
 }
 
@@ -824,7 +821,7 @@ static void drm_connector_destroy(struct wlr_output *output) {
 	struct wlr_drm_connector *conn = get_drm_connector_from_output(output);
 	drm_connector_cleanup(conn);
 	drmModeFreeCrtc(conn->old_crtc);
-	wl_event_source_remove(conn->retry_pageflip);
+	wl_event_source_remove(conn->fake_pageflip);
 	wl_list_remove(&conn->link);
 	free(conn);
 }
@@ -848,10 +845,18 @@ bool wlr_output_is_drm(struct wlr_output *output) {
 	return output->impl == &output_impl;
 }
 
-static int retry_pageflip(void *data) {
+// dirty hack to fake a working pageflip
+static void page_flip_handler(int fd, unsigned seq, unsigned tv_sec, unsigned tv_usec, void *data);
+static int fake_pageflip(void *data) {
 	struct wlr_drm_connector *conn = data;
-	wlr_log(WLR_INFO, "%s: Retrying pageflip", conn->output.name);
-	drm_connector_start_renderer(conn);
+	struct wlr_drm_backend *drm =
+		get_drm_backend_from_backend(conn->output.backend);
+
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        wlr_log(WLR_DEBUG, "clock: %ld.%ld", now.tv_sec, now.tv_nsec);
+
+        page_flip_handler(drm->fd, 0, now.tv_sec, now.tv_nsec / 1000, conn);
 	return 0;
 }
 
@@ -1122,7 +1127,7 @@ void scan_drm_connectors(struct wlr_drm_backend *drm) {
 				drm->display);
 
 			struct wl_event_loop *ev = wl_display_get_event_loop(drm->display);
-			wlr_conn->retry_pageflip = wl_event_loop_add_timer(ev, retry_pageflip,
+			wlr_conn->fake_pageflip = wl_event_loop_add_timer(ev, fake_pageflip,
 				wlr_conn);
 
 			wlr_conn->state = WLR_DRM_CONN_DISCONNECTED;
@@ -1362,7 +1367,7 @@ void restore_drm_outputs(struct wlr_drm_backend *drm) {
 		}
 	}
 
-	time_t timeout = time(NULL) + 5;
+	time_t timeout = time(NULL) + 1;
 
 	while (to_close && time(NULL) < timeout) {
 		handle_drm_event(drm->fd, 0, NULL);

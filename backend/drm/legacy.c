@@ -2,6 +2,7 @@
 #include <wlr/util/log.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <wlr/interfaces/wlr_output.h>
 #include "backend/drm/drm.h"
 #include "backend/drm/iface.h"
 #include "backend/drm/util.h"
@@ -18,8 +19,8 @@ static bool legacy_crtc_pageflip(struct wlr_drm_backend *drm,
 	}
 
 	if (drmModePageFlip(drm->fd, crtc->id, fb_id, DRM_MODE_PAGE_FLIP_EVENT, conn)) {
-		wlr_log_errno(WLR_ERROR, "%s: Failed to page flip", conn->output.name);
-		return false;
+		wl_event_source_timer_update(conn->fake_pageflip, 16);
+		return true;
 	}
 
 	return true;
